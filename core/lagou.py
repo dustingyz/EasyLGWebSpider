@@ -1,11 +1,13 @@
 import json
+import math
+import os
+import re
+import sys
 import time
 import urllib
 import urllib.parse
+import jieba.analyse as analyse
 from urllib import request
-import math
-import sys
-import os
 
 sys.path.append('../')
 
@@ -13,6 +15,24 @@ sys.path.append('../')
 def str2url(string):
     url_safe_string = urllib.parse.quote(string)
     return url_safe_string
+
+
+def salary_format(salary):
+    salary = salary.strip().replace(' ', '')
+    if salary.find('-') >= 0:
+        splits = salary.split('-')
+        average_salary = 0
+        for i in list(map(lambda x: int(x.lower().replace('k', '000')), splits)):
+            average_salary += i
+        p = re.compile('000$')
+        split = p.split(str(round(average_salary / 2)))
+        if len(split) > 1:
+            return split[0] + 'k'
+        else:
+            return str(round(int(split[0]) / 1000, 1)) + 'k'
+
+    elif salary.find('k'):
+        return salary
 
 
 class LagouScript(object):
@@ -119,19 +139,46 @@ class LagouScript(object):
                     req = request.Request(url, data, headers)
                     res = request.urlopen(req).read()
 
-                    print('正在保存第{page}页'.format(page=(i + 1)).center(50, '〓'))
+                    # print('正在保存第{page}页'.format(page=(i + 1)).center(50, '〓'), end='\n')
+                    print('\r' + '正在保存第{page}页'.format(page=(i + 1)).center(50, '〓'), end='')
+                    sys.stdout.flush()
                     if self.debug_flg == 2:
                         print(res)
                     else:
                         json_data = json.loads(res, encoding='utf-8')
-
-                        # with open(file_uri, 'wb') as f:
-                        #     f.write(res)
-
+                        result_list = json_data['content']['positionResult']['result']
+                        self.save_request_msg(result_list, f)
                     idx += 1
+                print('')
+        return file_uri
 
-    def save_request_msg(self):
-        pass
+    def save_request_msg(self, ls, file):
+        for item in ls:
+            if item['workYear'] is None:
+                year_ = '不限'
+            else:
+                year_ = item['workYear']
+
+            # msg = ','.join([item['education'],
+            #                 item['firstType'],
+            #                 ','.join(item['positionLables']),
+            #                 item['positionAdvantage'],
+            #                 item['positionName'],
+            #                 salary_format(item['salary']),
+            #                 year_ + '工作经验']) + '\n'
+            msg = [item['education'],
+                   item['firstType'],
+                   ','.join(item['positionLables']),
+                   item['positionAdvantage'],
+                   item['positionName'],
+                   salary_format(item['salary']),
+                   year_ + '工作经验']
+            # print(msg)
+
+            if self.debug_flg == 2:
+                print(msg)
+            else:
+                file.write(str(msg).encode('utf-8'))
 
     def debug_log(self, obj, method=''):
         if self.debug_flg:
@@ -149,4 +196,7 @@ if __name__ == "__main__":
         os.mkdir(result_dir)
     keyword = input('请输入要爬取的关键词：')
     script = LagouScript(flg)
-    script.lagou_spider(keyword)
+    file_ = script.lagou_spider(keyword)
+    with open(file_, 'rb') as f:
+        textrank = analyse.textrank(f.read(),topK=50, withWeight=True, allowPOS=('ns', 'n'))
+        print(textrank)
