@@ -3,7 +3,6 @@ import chardet
 import json
 from PIL import Image
 import numpy as np
-
 from wordcloud import WordCloud, ImageColorGenerator
 
 with open('./dat', 'rb') as f:
